@@ -90,9 +90,8 @@
       } catch (err) {
         console.warn("Não foi possível aplicar zoom:", err);
       }
-
-      let totalArea = 0;
-      validPolygons.features.forEach(f => {
+	
+	console.log("Feature para cálculo de área:", f);
         try {
           totalArea += turf.area(f);
         } catch (err) {
