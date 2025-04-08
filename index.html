@@ -70,7 +70,6 @@
         const kmlDoc = parser.parseFromString(event.target.result, 'application/xml');
         const geojson = toGeoJSON.kml(kmlDoc);
 
-        // Remover camadas anteriores
         if (window.kmlLayer) {
           map.removeLayer(window.kmlLayer);
         }
