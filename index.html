@@ -10,6 +10,7 @@
     #map { height: 500px; }
     .info { padding: 20px; }
     input[type="file"] { margin-top: 10px; }
+    button { margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -17,20 +18,21 @@
     <h2>📐 Calculadora de Área a partir de KML</h2>
     <input type="file" id="upload" accept=".kml" />
     <p id="areaResult">Área total: —</p>
+    <button id="downloadGeoJSON" style="display:none;">⬇️ Baixar GeoJSON</button>
   </div>
   <div id="map"></div>
 
-  <!-- Scripts necessários -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
   <script src="https://unpkg.com/turf@6.5.0/turf.min.js"></script>
 
-  <!-- 👇 Cole essa parte aqui -->
   <script>
     const map = L.map("map").setView([0, 0], 2);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
+
+    let convertedGeoJSON = null;
 
     document.getElementById("upload").addEventListener("change", function (e) {
       const file = e.target.files[0];
@@ -39,9 +41,12 @@
       const reader = new FileReader();
       reader.onload = function () {
         try {
+          const text = reader.result;
           const parser = new DOMParser();
-          const kml = parser.parseFromString(reader.result, "text/xml");
+          const kml = parser.parseFromString(text, "text/xml");
+
           const geojson = toGeoJSON.kml(kml);
+          convertedGeoJSON = geojson;
 
           console.log("GeoJSON convertido:", geojson);
 
@@ -51,8 +56,6 @@
               f.geometry && ["Polygon", "MultiPolygon"].includes(f.geometry.type)
             ),
           };
-
-          console.log("Polígonos válidos:", validPolygons.features);
 
           if (validPolygons.features.length === 0) {
             alert("⚠️ Nenhum polígono válido encontrado.");
@@ -65,19 +68,13 @@
             style: { color: "blue", weight: 2, fillOpacity: 0.4 },
           }).addTo(map);
 
-          try {
-            const bounds = window.layer.getBounds();
-            console.log("Zoom bounds:", bounds);
-            map.fitBounds(bounds);
-          } catch (zoomError) {
-            console.warn("Erro ao dar zoom:", zoomError);
-          }
+          const bounds = window.layer.getBounds();
+          map.fitBounds(bounds);
 
           let totalArea = 0;
           validPolygons.features.forEach(f => {
             try {
               const area = turf.area(f);
-              console.log("Área de feature:", area);
               totalArea += area;
             } catch (err) {
               console.warn("Erro no cálculo de uma feature:", err);
@@ -88,16 +85,28 @@
           document.getElementById("areaResult").textContent =
             `Área total: ${totalArea.toLocaleString(undefined, {maximumFractionDigits: 2})} m² (${areaHa.toFixed(2)} ha)`;
 
+          // Mostrar botão de download
+          document.getElementById("downloadGeoJSON").style.display = "inline-block";
+
         } catch (error) {
-          console.error("Erro geral:", error);
+          console.error("❌ Erro ao processar KML:", error);
           alert("❌ Erro ao ler o arquivo KML.");
         }
       };
 
       reader.readAsText(file);
     });
-  </script>
-  <!-- 👆 Fim da parte que você adiciona -->
 
+    document.getElementById("downloadGeoJSON").addEventListener("click", () => {
+      if (!convertedGeoJSON) return;
+      const blob = new Blob([JSON.stringify(convertedGeoJSON, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "convertido.geojson";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
 </body>
 </html>
