@@ -16,7 +16,7 @@
 <body>
   <div class="info">
     <h2>📐 Calculadora de Área (.kml ou .geojson)</h2>
-    <input type="file" id="upload" accept=".kml,.geojson" />
+    <input type="file" id="upload" accept=".kml,.geojson,.json" />
     <p id="areaResult">Área total: —</p>
     <button id="downloadGeoJSON" style="display:none;">⬇️ Baixar GeoJSON</button>
   </div>
@@ -42,23 +42,24 @@
       reader.onload = function () {
         try {
           let geojson = null;
+          const fileName = file.name.toLowerCase();
 
-          if (file.name.endsWith(".geojson") || file.name.endsWith(".json")) {
+          if (fileName.endsWith(".geojson") || fileName.endsWith(".json")) {
             geojson = JSON.parse(reader.result);
-          } else if (file.name.endsWith(".kml")) {
+          } else if (fileName.endsWith(".kml")) {
             const parser = new DOMParser();
             const kml = parser.parseFromString(reader.result, "text/xml");
             geojson = toGeoJSON.kml(kml);
           } else {
-            alert("Formato não suportado.");
+            alert("⚠️ Formato de arquivo não suportado.");
             return;
           }
 
           convertedGeoJSON = geojson;
           processGeoJSON(geojson);
         } catch (error) {
-          console.error("❌ Erro ao processar arquivo:", error);
-          alert("❌ Erro ao ler o arquivo.");
+          console.error("Erro ao processar o arquivo:", error);
+          alert("❌ O arquivo não pôde ser lido. Verifique se está no formato correto.");
         }
       };
 
