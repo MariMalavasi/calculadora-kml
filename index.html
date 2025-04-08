@@ -78,25 +78,26 @@
           }
 
           let totalArea = 0;
+          let validFeatures = 0;
 
-          const polygonFeatures = geojson.features.filter(f =>
-            f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')
-          );
-
-          if (polygonFeatures.length === 0) {
-            output.innerHTML = "❌ Nenhum polígono encontrado no arquivo KML.";
-            alert("⚠️ O KML foi carregado, mas não contém polígonos para calcular área.");
-            return;
-          }
-
-          polygonFeatures.forEach(feature => {
-            try {
-              const area = turf.area(feature);
-              totalArea += area;
-            } catch (err) {
-              console.warn('Erro ao calcular área:', err);
+          geojson.features.forEach(feature => {
+            const geom = feature.geometry;
+            if (geom && (geom.type === 'Polygon' || geom.type === 'MultiPolygon')) {
+              try {
+                const area = turf.area(feature);
+                totalArea += area;
+                validFeatures += 1;
+              } catch (err) {
+                console.warn('Erro ao calcular área de uma feature:', err);
+              }
             }
           });
+
+          if (validFeatures === 0) {
+            output.innerHTML = "❌ Nenhum polígono válido encontrado no KML.";
+            alert("⚠️ O arquivo foi carregado, mas não contém polígonos utilizáveis.");
+            return;
+          }
 
           const hectares = totalArea / 10000;
 
@@ -115,7 +116,7 @@
 
         } catch (err) {
           output.innerHTML = "❌ Erro ao processar o arquivo.";
-          alert("❌ Ocorreu um erro ao processar o KML. Verifique o arquivo.");
+          alert("❌ Ocorreu um erro ao processar o KML. Verifique o console.");
           console.error(err);
         }
       };
