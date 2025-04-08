@@ -2,29 +2,44 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8" />
-  <title>Calculadora de Área a partir de KML ou GeoJSON</title>
+  <title>Calculadora de Área (.kml ou .geojson)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     body { margin: 0; font-family: Arial, sans-serif; }
     #map { height: 500px; }
-    .info { padding: 20px; }
+    .info {
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+    .info h2 { margin: 0; font-size: 1.5em; }
     input[type="file"] { margin-top: 10px; }
     button { margin-top: 10px; }
   </style>
 </head>
 <body>
   <div class="info">
+    <img src="logo_geonoma.png" alt="Logo Geonoma" style="height: 50px;" />
     <h2>📐 Calculadora de Área (.kml ou .geojson)</h2>
+  </div>
+
+  <div class="info">
     <input type="file" id="upload" accept=".kml,.geojson,.json" />
     <p id="areaResult">Área total: —</p>
     <button id="downloadGeoJSON" style="display:none;">⬇️ Baixar GeoJSON</button>
   </div>
+
   <div id="map"></div>
 
+  <!-- Bibliotecas -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
   <script src="https://unpkg.com/turf@6.5.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js"></script>
 
   <script>
     const map = L.map("map").setView([0, 0], 2);
@@ -66,7 +81,50 @@
       reader.readAsText(file);
     });
 
+    function reprojectGeoJSON(geojson) {
+      const from = proj4.defs("EPSG:3857"); // assume metros
+      const to = proj4.defs("EPSG:4326");   // WGS 84
+
+      function reprojectCoord(coord) {
+        return proj4(from, to, coord);
+      }
+
+      function reprojectPolygon(coords) {
+        return coords.map(ring => ring.map(reprojectCoord));
+      }
+
+      const newFeatures = geojson.features.map(feature => {
+        if (!feature.geometry) return feature;
+        if (feature.geometry.type === "Polygon") {
+          return {
+            ...feature,
+            geometry: {
+              ...feature.geometry,
+              coordinates: reprojectPolygon(feature.geometry.coordinates)
+            }
+          };
+        }
+        if (feature.geometry.type === "MultiPolygon") {
+          return {
+            ...feature,
+            geometry: {
+              ...feature.geometry,
+              coordinates: feature.geometry.coordinates.map(reprojectPolygon)
+            }
+          };
+        }
+        return feature;
+      });
+
+      return {
+        type: "FeatureCollection",
+        features: newFeatures
+      };
+    }
+
     function processGeoJSON(geojson) {
+      geojson = reprojectGeoJSON(geojson);
+
       const validPolygons = {
         type: "FeatureCollection",
         features: geojson.features.filter(f =>
@@ -90,8 +148,9 @@
       } catch (err) {
         console.warn("Não foi possível aplicar zoom:", err);
       }
-	
-	console.log("Feature para cálculo de área:", f);
+
+      let totalArea = 0;
+      validPolygons.features.forEach(f => {
         try {
           totalArea += turf.area(f);
         } catch (err) {
