@@ -38,6 +38,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
   <script src="https://unpkg.com/turf@6.5.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
 
   <script>
     const map = L.map("map").setView([0, 0], 2);
@@ -68,8 +69,8 @@
             return;
           }
 
-          convertedGeoJSON = geojson;
-          processGeoJSON(geojson);
+          convertedGeoJSON = possiblyReproject(geojson);
+          processGeoJSON(convertedGeoJSON);
         } catch (error) {
           console.error("Erro ao processar o arquivo:", error);
           alert("❌ O arquivo não pôde ser lido. Verifique se está no formato correto.");
@@ -78,6 +79,57 @@
 
       reader.readAsText(file);
     });
+
+    function possiblyReproject(geojson) {
+      const isInDegrees = coord => Math.abs(coord[0]) <= 180 && Math.abs(coord[1]) <= 90;
+      const needsReprojection = geojson.features.some(f => {
+        try {
+          const coords = f.geometry.coordinates.flat(Infinity);
+          return coords.some(v => typeof v === "number" && !isInDegrees([v, v]));
+        } catch { return false; }
+      });
+
+      if (!needsReprojection) return geojson;
+
+      const from = proj4.defs("EPSG:3857");
+      const to = proj4.defs("EPSG:4326");
+
+      function reprojectCoord([x, y]) {
+        return proj4(from, to, [x, y]);
+      }
+
+      function reprojectPolygon(coords) {
+        return coords.map(ring => ring.map(reprojectCoord));
+      }
+
+      const newFeatures = geojson.features.map(feature => {
+        if (!feature.geometry) return feature;
+        if (feature.geometry.type === "Polygon") {
+          return {
+            ...feature,
+            geometry: {
+              ...feature.geometry,
+              coordinates: reprojectPolygon(feature.geometry.coordinates)
+            }
+          };
+        }
+        if (feature.geometry.type === "MultiPolygon") {
+          return {
+            ...feature,
+            geometry: {
+              ...feature.geometry,
+              coordinates: feature.geometry.coordinates.map(reprojectPolygon)
+            }
+          };
+        }
+        return feature;
+      });
+
+      return {
+        type: "FeatureCollection",
+        features: newFeatures
+      };
+    }
 
     function processGeoJSON(geojson) {
       const validPolygons = {
