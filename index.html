@@ -64,48 +64,60 @@
       const file = e.target.files[0];
       if (!file) return;
 
+      alert("📁 Arquivo KML carregado! Calculando a área...");
+
       const reader = new FileReader();
       reader.onload = function (event) {
-        const parser = new DOMParser();
-        const kmlDoc = parser.parseFromString(event.target.result, 'application/xml');
-        const geojson = toGeoJSON.kml(kmlDoc);
+        try {
+          const parser = new DOMParser();
+          const kmlDoc = parser.parseFromString(event.target.result, 'application/xml');
+          const geojson = toGeoJSON.kml(kmlDoc);
 
-        if (window.kmlLayer) {
-          map.removeLayer(window.kmlLayer);
-        }
-
-        let totalArea = 0;
-
-        const polygonFeatures = geojson.features.filter(f =>
-          f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')
-        );
-
-        if (polygonFeatures.length === 0) {
-          output.innerHTML = "❌ Nenhum polígono encontrado no arquivo KML.";
-          return;
-        }
-
-        polygonFeatures.forEach(feature => {
-          try {
-            const area = turf.area(feature);
-            totalArea += area;
-          } catch (err) {
-            console.warn('Erro ao calcular área:', err);
+          if (window.kmlLayer) {
+            map.removeLayer(window.kmlLayer);
           }
-        });
 
-        const hectares = totalArea / 10000;
+          let totalArea = 0;
 
-        output.innerHTML = `
-          ✅ <strong>Área total:</strong> ${totalArea.toFixed(2)} m²<br>
-          🌿 <strong>Hectares:</strong> ${hectares.toFixed(4)} ha
-        `;
+          const polygonFeatures = geojson.features.filter(f =>
+            f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')
+          );
 
-        window.kmlLayer = L.geoJSON(geojson, {
-          style: { color: 'green', weight: 2 }
-        }).addTo(map);
+          if (polygonFeatures.length === 0) {
+            output.innerHTML = "❌ Nenhum polígono encontrado no arquivo KML.";
+            alert("⚠️ O KML foi carregado, mas não contém polígonos para calcular área.");
+            return;
+          }
 
-        map.fitBounds(window.kmlLayer.getBounds(), { padding: [20, 20] });
+          polygonFeatures.forEach(feature => {
+            try {
+              const area = turf.area(feature);
+              totalArea += area;
+            } catch (err) {
+              console.warn('Erro ao calcular área:', err);
+            }
+          });
+
+          const hectares = totalArea / 10000;
+
+          output.innerHTML = `
+            ✅ <strong>Área total:</strong> ${totalArea.toFixed(2)} m²<br>
+            🌿 <strong>Hectares:</strong> ${hectares.toFixed(4)} ha
+          `;
+
+          alert("✅ Cálculo finalizado! Confira o resultado abaixo.");
+
+          window.kmlLayer = L.geoJSON(geojson, {
+            style: { color: 'green', weight: 2 }
+          }).addTo(map);
+
+          map.fitBounds(window.kmlLayer.getBounds(), { padding: [20, 20] });
+
+        } catch (err) {
+          output.innerHTML = "❌ Erro ao processar o arquivo.";
+          alert("❌ Ocorreu um erro ao processar o KML. Verifique o arquivo.");
+          console.error(err);
+        }
       };
 
       reader.readAsText(file);
