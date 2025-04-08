@@ -70,13 +70,23 @@
         const kmlDoc = parser.parseFromString(event.target.result, 'application/xml');
         const geojson = toGeoJSON.kml(kmlDoc);
 
+        // Remover camadas anteriores
         if (window.kmlLayer) {
           map.removeLayer(window.kmlLayer);
         }
 
         let totalArea = 0;
 
-        geojson.features.forEach(feature => {
+        const polygonFeatures = geojson.features.filter(f =>
+          f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')
+        );
+
+        if (polygonFeatures.length === 0) {
+          output.innerHTML = "❌ Nenhum polígono encontrado no arquivo KML.";
+          return;
+        }
+
+        polygonFeatures.forEach(feature => {
           try {
             const area = turf.area(feature);
             totalArea += area;
@@ -88,14 +98,15 @@
         const hectares = totalArea / 10000;
 
         output.innerHTML = `
-          <br>📏 Área total: <strong>${totalArea.toFixed(2)} m²</strong><br>
-          🌿 Equivalente a <strong>${hectares.toFixed(4)} hectares</strong>
+          ✅ <strong>Área total:</strong> ${totalArea.toFixed(2)} m²<br>
+          🌿 <strong>Hectares:</strong> ${hectares.toFixed(4)} ha
         `;
 
         window.kmlLayer = L.geoJSON(geojson, {
           style: { color: 'green', weight: 2 }
         }).addTo(map);
-        map.fitBounds(window.kmlLayer.getBounds());
+
+        map.fitBounds(window.kmlLayer.getBounds(), { padding: [20, 20] });
       };
 
       reader.readAsText(file);
