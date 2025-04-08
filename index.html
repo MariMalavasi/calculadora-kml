@@ -1,141 +1,64 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>Calculadora de Área KML com Reprojeção</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-  <!-- Turf.js para cálculo de área -->
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-
-  <!-- Proj4js para reprojeção de coordenadas -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.6.2/proj4.js"></script>
-
-  <!-- reproject para reprojeção de GeoJSON -->
-  <script src="https://unpkg.com/reproject@2.2.0/dist/reproject.min.js"></script>
-
-  <!-- toGeoJSON para converter KML -->
-  <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.js"></script>
-
+  <meta charset="utf-8" />
+  <title>Calculadora de Área com KML</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-
-    #map {
-      height: 80vh;
-    }
-
-    .controls {
-      padding: 1em;
-      background-color: #f8f8f8;
-    }
-
-    .output {
-      margin-top: 1em;
-      font-size: 1.1em;
-      font-weight: bold;
-    }
-
-    input[type="file"] {
-      font-size: 1em;
-      padding: 0.5em;
-    }
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 500px; }
+    .info { padding: 10px; }
+    input[type="file"] { margin: 10px 0; }
   </style>
 </head>
 <body>
-
+  <div class="info">
+    <h2>📐 Calculadora de Área a partir de KML</h2>
+    <input type="file" id="upload" accept=".kml" />
+    <p id="areaResult">Área total: —</p>
+  </div>
   <div id="map"></div>
 
-  <div class="controls">
-    <input type="file" id="fileInput" accept=".kml">
-    <div class="output" id="output">Selecione um arquivo .kml para calcular a área.</div>
-  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/togeojson@0.16.0"></script>
+  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0"></script>
+  <script src="https://unpkg.com/turf@6.5.0/turf.min.js"></script>
 
   <script>
-    const map = L.map('map').setView([-14.2350, -51.9253], 4);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+    const map = L.map("map").setView([0, 0], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-    const output = document.getElementById('output');
-
-    document.getElementById('fileInput').addEventListener('change', function (e) {
+    document.getElementById("upload").addEventListener("change", function (e) {
       const file = e.target.files[0];
       if (!file) return;
 
-      alert("📁 Arquivo KML carregado! Calculando a área...");
-
       const reader = new FileReader();
-      reader.onload = function (event) {
-        try {
-          const parser = new DOMParser();
-          const kmlDoc = parser.parseFromString(event.target.result, 'application/xml');
-          const geojson = toGeoJSON.kml(kmlDoc);
+      reader.onload = function () {
+        const parser = new DOMParser();
+        const kml = parser.parseFromString(reader.result, "text/xml");
+        const geojson = toGeoJSON.kml(kml);
 
-          if (window.kmlLayer) {
-            map.removeLayer(window.kmlLayer);
-          }
+        // Remove camadas anteriores
+        if (window.layer) map.removeLayer(window.layer);
 
-          // Definir a projeção de destino (por exemplo, UTM zona 23S para o Brasil)
-          const proj4UTM = "+proj=utm +zone=23 +south +datum=WGS84 +units=m +no_defs";
+        window.layer = L.geoJSON(geojson).addTo(map);
+        map.fitBounds(window.layer.getBounds());
 
-          // Reprojetar o GeoJSON para a projeção UTM
-          const geojsonUTM = reproject.reproject(geojson, proj4.defs('EPSG:4326'), proj4UTM, proj4);
+        // Calcular área em m² e hectares
+        const area_m2 = turf.area(geojson);
+        const area_ha = area_m2 / 10000;
 
-          let totalArea = 0;
-          let validFeatures = 0;
-
-          geojsonUTM.features.forEach(feature => {
-            const geom = feature.geometry;
-            if (geom && (geom.type === 'Polygon' || geom.type === 'MultiPolygon')) {
-              try {
-                const area = turf.area(feature);
-                totalArea += area;
-                validFeatures += 1;
-              } catch (err) {
-                console.warn('Erro ao calcular área de uma feature:', err);
-              }
-            }
-          });
-
-          if (validFeatures === 0) {
-            output.innerHTML = "❌ Nenhum polígono válido encontrado no KML.";
-            alert("⚠️ O arquivo foi carregado, mas não contém polígonos utilizáveis.");
-            return;
-          }
-
-          const hectares = totalArea / 10000;
-
-          output.innerHTML = `
-            ✅ <strong>Área total:</strong> ${totalArea.toFixed(2)} m²<br>
-            🌿 <strong>Hectares:</strong> ${hectares.toFixed(4)} ha
-          `;
-
-          alert("✅ Cálculo finalizado! Confira o resultado abaixo.");
-
-          window.kmlLayer = L.geoJSON(geojson, {
-            style: { color: 'green', weight: 2 }
-          }).addTo(map);
-
-          map.fitBounds(window.kmlLayer.getBounds(), { padding: [20, 20] });
-
-        } catch (err) {
-          output.innerHTML = "❌ Erro ao processar o arquivo.";
-          alert("❌ Ocorreu um erro ao processar o KML. Verifique o console.");
-          console.error(err);
-        }
+        document.getElementById("areaResult").textContent =
+          `Área total: ${area_m2.toLocaleString()} m² (${area_ha.toFixed(2)} ha)`;
       };
-
       reader.readAsText(file);
     });
   </script>
-
 </body>
 </html>
