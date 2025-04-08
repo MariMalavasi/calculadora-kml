@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Calculadora de Área KML</title>
+  <title>Calculadora de Área KML com Reprojeção</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Leaflet -->
@@ -10,7 +10,13 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
   <!-- Turf.js para cálculo de área -->
-  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+
+  <!-- Proj4js para reprojeção de coordenadas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.6.2/proj4.js"></script>
+
+  <!-- reproject para reprojeção de GeoJSON -->
+  <script src="https://unpkg.com/reproject@2.2.0/dist/reproject.min.js"></script>
 
   <!-- toGeoJSON para converter KML -->
   <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.js"></script>
@@ -77,10 +83,16 @@
             map.removeLayer(window.kmlLayer);
           }
 
+          // Definir a projeção de destino (por exemplo, UTM zona 23S para o Brasil)
+          const proj4UTM = "+proj=utm +zone=23 +south +datum=WGS84 +units=m +no_defs";
+
+          // Reprojetar o GeoJSON para a projeção UTM
+          const geojsonUTM = reproject.reproject(geojson, proj4.defs('EPSG:4326'), proj4UTM, proj4);
+
           let totalArea = 0;
           let validFeatures = 0;
 
-          geojson.features.forEach(feature => {
+          geojsonUTM.features.forEach(feature => {
             const geom = feature.geometry;
             if (geom && (geom.type === 'Polygon' || geom.type === 'MultiPolygon')) {
               try {
