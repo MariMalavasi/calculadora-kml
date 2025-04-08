@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Área de KML + Mapa</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Turf.js para cálculo de área -->
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+
+  <!-- toGeoJSON para converter KML -->
+  <script src="https://unpkg.com/togeojson@0.16.0/dist/togeojson.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      height: 80vh;
+    }
+
+    .controls {
+      padding: 1em;
+    }
+
+    .output {
+      margin-top: 1em;
+      font-size: 1.1em;
+      font-weight: bold;
+    }
+
+    input[type="file"] {
+      font-size: 1em;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <div class="controls">
+    <input type="file" id="fileInput" accept=".kml">
+    <div class="output" id="output"></div>
+  </div>
+
+  <script>
+    const map = L.map('map').setView([-14.2350, -51.9253], 4); // centro do Brasil
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const output = document.getElementById('output');
+
+    document.getElementById('fileInput').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const parser = new DOMParser();
+        const kmlDoc = parser.parseFromString(event.target.result, 'application/xml');
+        const geojson = toGeoJSON.kml(kmlDoc);
+
+        // Limpa camadas anteriores
+        if (window.kmlLayer) {
+          map.removeLayer(window.kmlLayer);
+        }
+
+        let totalArea = 0;
+
+        geojson.features.forEach(feature => {
+          try {
+            const area = turf.area(feature);
+            totalArea += area;
+          } catch (err) {
+            console.warn('Erro ao calcular área:', err);
+          }
+        });
+
+        const hectares = totalArea / 10000;
+
+        output.innerHTML = `
+          Área total: ${totalArea.toFixed(2)} m²<br>
+          ${hectares.toFixed(4)} hectares
+        `;
+
+        // Adiciona ao mapa
+        window.kmlLayer = L.geoJSON(geojson, {
+          style: { color: 'green', weight: 2 }
+        }).addTo(map);
+        map.fitBounds(window.kmlLayer.getBounds());
+      };
+
+      reader.readAsText(file);
+    });
+  </script>
+
+</body>
+</html>
