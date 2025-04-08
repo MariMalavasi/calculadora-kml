@@ -1,62 +1,86 @@
-<script>
-  const map = L.map("map").setView([0, 0], 2);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors",
-  }).addTo(map);
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>Calculadora de Área a partir de KML</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 500px; }
+    .info { padding: 20px; }
+    input[type="file"] { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="info">
+    <h2>📐 Calculadora de Área a partir de KML</h2>
+    <input type="file" id="upload" accept=".kml" />
+    <p id="areaResult">Área total: —</p>
+  </div>
+  <div id="map"></div>
 
-  document.getElementById("upload").addEventListener("change", function (e) {
-    const file = e.target.files[0];
-    if (!file) return;
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
+  <script src="https://unpkg.com/turf@6.5.0/turf.min.js"></script>
 
-    const reader = new FileReader();
-    reader.onload = function () {
-      try {
-        const parser = new DOMParser();
-        const kml = parser.parseFromString(reader.result, "text/xml");
-        const geojson = toGeoJSON.kml(kml);
+  <script>
+    const map = L.map("map").setView([0, 0], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
 
-        // Filtra apenas Polygon ou MultiPolygon
-        const validPolygons = {
-          type: "FeatureCollection",
-          features: geojson.features.filter(f => {
-            return f.geometry && ["Polygon", "MultiPolygon"].includes(f.geometry.type);
-          }),
-        };
+    document.getElementById("upload").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
 
-        if (validPolygons.features.length === 0) {
-          alert("⚠️ Nenhum polígono válido encontrado no arquivo KML.");
-          return;
-        }
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const parser = new DOMParser();
+          const kml = parser.parseFromString(reader.result, "text/xml");
+          const geojson = toGeoJSON.kml(kml);
 
-        // Remove camada anterior
-        if (window.layer) map.removeLayer(window.layer);
+          const validPolygons = {
+            type: "FeatureCollection",
+            features: geojson.features.filter(f =>
+              f.geometry && ["Polygon", "MultiPolygon"].includes(f.geometry.type)
+            ),
+          };
 
-        // Adiciona nova camada ao mapa
-        window.layer = L.geoJSON(validPolygons, {
-          style: { color: "blue", weight: 2, fillOpacity: 0.4 },
-        }).addTo(map);
-        map.fitBounds(window.layer.getBounds());
-
-        // Calcular área total
-        let totalArea = 0;
-        validPolygons.features.forEach(f => {
-          try {
-            totalArea += turf.area(f);  // metros quadrados
-          } catch (err) {
-            console.warn("Erro ao calcular área de um feature:", err);
+          if (validPolygons.features.length === 0) {
+            alert("⚠️ Nenhum polígono válido encontrado.");
+            return;
           }
-        });
 
-        const areaHa = totalArea / 10000;
-        document.getElementById("areaResult").textContent =
-          `Área total: ${totalArea.toLocaleString(undefined, { maximumFractionDigits: 2 })} m² (${areaHa.toFixed(2)} ha)`;
+          if (window.layer) map.removeLayer(window.layer);
 
-      } catch (error) {
-        console.error("Erro geral:", error);
-        alert("❌ Ocorreu um erro ao processar o arquivo KML.");
-      }
-    };
+          window.layer = L.geoJSON(validPolygons, {
+            style: { color: "blue", weight: 2, fillOpacity: 0.4 },
+          }).addTo(map);
+          map.fitBounds(window.layer.getBounds());
 
-    reader.readAsText(file);
-  });
-</script>
+          let totalArea = 0;
+          validPolygons.features.forEach(f => {
+            try {
+              totalArea += turf.area(f);
+            } catch (err) {
+              console.warn("Erro no cálculo de uma feature:", err);
+            }
+          });
+
+          const areaHa = totalArea / 10000;
+          document.getElementById("areaResult").textContent =
+            `Área total: ${totalArea.toLocaleString(undefined, {maximumFractionDigits: 2})} m² (${areaHa.toFixed(2)} ha)`;
+
+        } catch (error) {
+          console.error("Erro ao processar:", error);
+          alert("❌ Erro ao ler o arquivo KML.");
+        }
+      };
+
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
