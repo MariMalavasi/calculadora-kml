@@ -38,8 +38,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@tmcw/togeojson@0.16.0/dist/togeojson.umd.js"></script>
   <script src="https://unpkg.com/turf@6.5.0/turf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4leaflet/1.0.2/proj4leaflet.min.js"></script>
 
   <script>
     const map = L.map("map").setView([0, 0], 2);
@@ -81,50 +79,7 @@
       reader.readAsText(file);
     });
 
-    function reprojectGeoJSON(geojson) {
-      const from = proj4.defs("EPSG:3857"); // assume metros
-      const to = proj4.defs("EPSG:4326");   // WGS 84
-
-      function reprojectCoord(coord) {
-        return proj4(from, to, coord);
-      }
-
-      function reprojectPolygon(coords) {
-        return coords.map(ring => ring.map(reprojectCoord));
-      }
-
-      const newFeatures = geojson.features.map(feature => {
-        if (!feature.geometry) return feature;
-        if (feature.geometry.type === "Polygon") {
-          return {
-            ...feature,
-            geometry: {
-              ...feature.geometry,
-              coordinates: reprojectPolygon(feature.geometry.coordinates)
-            }
-          };
-        }
-        if (feature.geometry.type === "MultiPolygon") {
-          return {
-            ...feature,
-            geometry: {
-              ...feature.geometry,
-              coordinates: feature.geometry.coordinates.map(reprojectPolygon)
-            }
-          };
-        }
-        return feature;
-      });
-
-      return {
-        type: "FeatureCollection",
-        features: newFeatures
-      };
-    }
-
     function processGeoJSON(geojson) {
-      geojson = reprojectGeoJSON(geojson);
-
       const validPolygons = {
         type: "FeatureCollection",
         features: geojson.features.filter(f =>
