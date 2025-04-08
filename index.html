@@ -2,9 +2,9 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8">
-  <title>Área de KML + Mapa</title>
+  <title>Calculadora de Área KML</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -28,6 +28,7 @@
 
     .controls {
       padding: 1em;
+      background-color: #f8f8f8;
     }
 
     .output {
@@ -38,6 +39,7 @@
 
     input[type="file"] {
       font-size: 1em;
+      padding: 0.5em;
     }
   </style>
 </head>
@@ -47,11 +49,11 @@
 
   <div class="controls">
     <input type="file" id="fileInput" accept=".kml">
-    <div class="output" id="output"></div>
+    <div class="output" id="output">Selecione um arquivo .kml para calcular a área.</div>
   </div>
 
   <script>
-    const map = L.map('map').setView([-14.2350, -51.9253], 4); // centro do Brasil
+    const map = L.map('map').setView([-14.2350, -51.9253], 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
@@ -68,7 +70,6 @@
         const kmlDoc = parser.parseFromString(event.target.result, 'application/xml');
         const geojson = toGeoJSON.kml(kmlDoc);
 
-        // Limpa camadas anteriores
         if (window.kmlLayer) {
           map.removeLayer(window.kmlLayer);
         }
@@ -87,11 +88,10 @@
         const hectares = totalArea / 10000;
 
         output.innerHTML = `
-          Área total: ${totalArea.toFixed(2)} m²<br>
-          ${hectares.toFixed(4)} hectares
+          <br>📏 Área total: <strong>${totalArea.toFixed(2)} m²</strong><br>
+          🌿 Equivalente a <strong>${hectares.toFixed(4)} hectares</strong>
         `;
 
-        // Adiciona ao mapa
         window.kmlLayer = L.geoJSON(geojson, {
           style: { color: 'green', weight: 2 }
         }).addTo(map);
