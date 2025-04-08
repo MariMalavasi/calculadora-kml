@@ -1,64 +1,53 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-  <meta charset="utf-8" />
-  <title>Calculadora de Área com KML</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-  <style>
-    body { margin: 0; font-family: Arial, sans-serif; }
-    #map { height: 500px; }
-    .info { padding: 10px; }
-    input[type="file"] { margin: 10px 0; }
-  </style>
-</head>
-<body>
-  <div class="info">
-    <h2>📐 Calculadora de Área a partir de KML</h2>
-    <input type="file" id="upload" accept=".kml" />
-    <p id="areaResult">Área total: —</p>
-  </div>
-  <div id="map"></div>
+<script>
+  const map = L.map("map").setView([0, 0], 2);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors",
+  }).addTo(map);
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/togeojson@0.16.0"></script>
-  <script src="https://unpkg.com/@tmcw/togeojson@0.16.0"></script>
-  <script src="https://unpkg.com/turf@6.5.0/turf.min.js"></script>
+  document.getElementById("upload").addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
 
-  <script>
-    const map = L.map("map").setView([0, 0], 2);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-    }).addTo(map);
-
-    document.getElementById("upload").addEventListener("change", function (e) {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function () {
+    const reader = new FileReader();
+    reader.onload = function () {
+      try {
         const parser = new DOMParser();
         const kml = parser.parseFromString(reader.result, "text/xml");
         const geojson = toGeoJSON.kml(kml);
 
+        // Filtra apenas polígonos válidos
+        const validPolygons = {
+          type: "FeatureCollection",
+          features: geojson.features.filter(
+            (f) => f.geometry && ["Polygon", "MultiPolygon"].includes(f.geometry.type)
+          ),
+        };
+
+        if (validPolygons.features.length === 0) {
+          alert("Nenhum polígono válido encontrado no arquivo.");
+          return;
+        }
+
         // Remove camadas anteriores
         if (window.layer) map.removeLayer(window.layer);
 
-        window.layer = L.geoJSON(geojson).addTo(map);
+        // Adiciona ao mapa
+        window.layer = L.geoJSON(validPolygons).addTo(map);
         map.fitBounds(window.layer.getBounds());
 
-        // Calcular área em m² e hectares
-        const area_m2 = turf.area(geojson);
+        // Calcular área
+        const area_m2 = turf.area(validPolygons);
         const area_ha = area_m2 / 10000;
 
         document.getElementById("areaResult").textContent =
-          `Área total: ${area_m2.toLocaleString()} m² (${area_ha.toFixed(2)} ha)`;
-      };
-      reader.readAsText(file);
-    });
-  </script>
-</body>
-</html>
+          `Área total: ${area_m2.toLocaleString(undefined, {maximumFractionDigits: 2})} m² (${area_ha.toFixed(2)} ha)`;
+
+      } catch (error) {
+        console.error("Erro ao processar o arquivo:", error);
+        alert("Houve um erro ao processar o arquivo KML. Verifique se ele está válido.");
+      }
+    };
+
+    reader.readAsText(file);
+  });
+</script>
