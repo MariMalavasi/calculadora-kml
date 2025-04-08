@@ -15,36 +15,45 @@
         const kml = parser.parseFromString(reader.result, "text/xml");
         const geojson = toGeoJSON.kml(kml);
 
-        // Filtra apenas polígonos válidos
+        // Filtra apenas Polygon ou MultiPolygon
         const validPolygons = {
           type: "FeatureCollection",
-          features: geojson.features.filter(
-            (f) => f.geometry && ["Polygon", "MultiPolygon"].includes(f.geometry.type)
-          ),
+          features: geojson.features.filter(f => {
+            return f.geometry && ["Polygon", "MultiPolygon"].includes(f.geometry.type);
+          }),
         };
 
         if (validPolygons.features.length === 0) {
-          alert("Nenhum polígono válido encontrado no arquivo.");
+          alert("⚠️ Nenhum polígono válido encontrado no arquivo KML.");
           return;
         }
 
-        // Remove camadas anteriores
+        // Remove camada anterior
         if (window.layer) map.removeLayer(window.layer);
 
-        // Adiciona ao mapa
-        window.layer = L.geoJSON(validPolygons).addTo(map);
+        // Adiciona nova camada ao mapa
+        window.layer = L.geoJSON(validPolygons, {
+          style: { color: "blue", weight: 2, fillOpacity: 0.4 },
+        }).addTo(map);
         map.fitBounds(window.layer.getBounds());
 
-        // Calcular área
-        const area_m2 = turf.area(validPolygons);
-        const area_ha = area_m2 / 10000;
+        // Calcular área total
+        let totalArea = 0;
+        validPolygons.features.forEach(f => {
+          try {
+            totalArea += turf.area(f);  // metros quadrados
+          } catch (err) {
+            console.warn("Erro ao calcular área de um feature:", err);
+          }
+        });
 
+        const areaHa = totalArea / 10000;
         document.getElementById("areaResult").textContent =
-          `Área total: ${area_m2.toLocaleString(undefined, {maximumFractionDigits: 2})} m² (${area_ha.toFixed(2)} ha)`;
+          `Área total: ${totalArea.toLocaleString(undefined, { maximumFractionDigits: 2 })} m² (${areaHa.toFixed(2)} ha)`;
 
       } catch (error) {
-        console.error("Erro ao processar o arquivo:", error);
-        alert("Houve um erro ao processar o arquivo KML. Verifique se ele está válido.");
+        console.error("Erro geral:", error);
+        alert("❌ Ocorreu um erro ao processar o arquivo KML.");
       }
     };
 
